@@ -685,6 +685,11 @@ type WindowHandler interface {
 	// the backend, which shows the sign-in dialog it shows in its own
 	// browser.
 	AuthenticationRequested(ch AuthChallenge) (Credential, bool)
+	// HasAuthenticationHandler reports whether the app answers challenges
+	// at all. Without one, the backend leaves them to the system; an app
+	// that answers and then declines has the challenge canceled instead,
+	// so the web view does not retry a credential it already rejected.
+	HasAuthenticationHandler() bool
 
 	// SurfaceEvent delivers input on the window's Surface, and changes of
 	// it. For FileDragOver and FileDrop it reports whether the content

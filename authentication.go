@@ -33,6 +33,13 @@ func (p *Page) SetAuthenticationHandler(fn func(req AuthenticationRequest) *Cred
 	p.w.mu.Unlock()
 }
 
+// HasAuthenticationHandler reports whether the window answers challenges.
+func (h *windowHandler) HasAuthenticationHandler() bool {
+	h.w.mu.Lock()
+	defer h.w.mu.Unlock()
+	return h.w.authHandler != nil
+}
+
 func (h *windowHandler) AuthenticationRequested(ch platform.AuthChallenge) (platform.Credential, bool) {
 	h.w.mu.Lock()
 	fn := h.w.authHandler

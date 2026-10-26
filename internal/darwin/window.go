@@ -1874,11 +1874,12 @@ func registerWindowClasses() {
 				const (
 					useCredential   = 0 // NSURLSessionAuthChallengeUseCredential
 					defaultHandling = 1 // NSURLSessionAuthChallengePerformDefaultHandling
+					cancel          = 2 // NSURLSessionAuthChallengeCancelAuthenticationChallenge
 				)
 				space := send(challenge, "protectionSpace")
 				scheme := strings.TrimPrefix(goString(send(space, "authenticationMethod")), "NSURLAuthenticationMethod")
 				if scheme == "HTTPBasic" || scheme == "HTTPDigest" {
-					if w := b().windowFor(self); w != nil {
+					if w := b().windowFor(self); w != nil && w.h.HasAuthenticationHandler() {
 						cred, ok := w.h.AuthenticationRequested(platform.AuthChallenge{
 							Scheme: scheme,
 							Realm:  goString(send(space, "realm")),
@@ -1892,6 +1893,12 @@ func registerWindowClasses() {
 							callBlock(handler, useCredential, uintptr(c))
 							return
 						}
+						// The app declined, so the credential it gave
+						// before was wrong. Canceling ends the request;
+						// the default handling would send that same
+						// credential again and again.
+						callBlock(handler, cancel, 0)
+						return
 					}
 				}
 				callBlock(handler, defaultHandling, 0)
