@@ -113,6 +113,11 @@ type Backend interface {
 
 	NewTray(h TrayHandler) (Tray, error)
 	RegisterHotkey(id int, accelerator string) error
+	// RegisterRepeatHotkey registers a shortcut that also fires while it is
+	// held down, every repeat interval, until the key is released.
+	// Platforms that report no key release fire it once per press, as
+	// RegisterHotkey does.
+	RegisterRepeatHotkey(id int, accelerator string) error
 	UnregisterHotkey(id int)
 
 	NotificationsSupported() bool

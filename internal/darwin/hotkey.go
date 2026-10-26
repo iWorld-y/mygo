@@ -4,6 +4,7 @@ package darwin
 
 import (
 	"fmt"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -18,6 +19,7 @@ const (
 	hotKeySignature         = 0x4D79476F // 'MyGo'
 	kEventClassKeyboard     = 0x6B657962 // 'keyb'
 	kEventHotKeyPressed     = 5
+	kEventHotKeyReleased    = 6
 	kEventParamDirectObject = 0x2D2D2D2D // '----'
 	typeEventHotKeyID       = 0x686B6964 // 'hkid'
 
@@ -25,6 +27,14 @@ const (
 	carbonShift   = 1 << 9
 	carbonOption  = 1 << 11
 	carbonControl = 1 << 12
+)
+
+const (
+	// hotkeyRepeatInterval is how often a held shortcut fires again.
+	hotkeyRepeatInterval = 90 * time.Millisecond
+	// hotkeyRepeatMax caps the repeats, so a release that never arrives
+	// cannot repeat for good.
+	hotkeyRepeatMax = 220
 )
 
 // keyCodes maps accelerator keys to macOS virtual key codes (ANSI layout).
@@ -51,6 +61,16 @@ var hotKeyHandler = purego.NewCallback(func(next, event, userData uintptr) uintp
 	var hk eventHotKeyID
 	if getEventParameter(event, kEventParamDirectObject, typeEventHotKeyID, 0, unsafe.Sizeof(hk), 0, unsafe.Pointer(&hk)) == 0 {
 		theBackend.h.HotkeyPressed(int(hk.ID))
+		theBackend.startRepeat(int(hk.ID))
+	}
+	return 0
+})
+
+// hotKeyReleasedHandler ends the repeats of a shortcut the user let go of.
+var hotKeyReleasedHandler = purego.NewCallback(func(next, event, userData uintptr) uintptr {
+	var hk eventHotKeyID
+	if getEventParameter(event, kEventParamDirectObject, typeEventHotKeyID, 0, unsafe.Sizeof(hk), 0, unsafe.Pointer(&hk)) == 0 {
+		theBackend.stopRepeat(int(hk.ID))
 	}
 	return 0
 })
@@ -88,6 +108,10 @@ func (b *Backend) RegisterHotkey(hid int, acc string) error {
 		if st := installEventHandler(getApplicationEventTarget(), hotKeyHandler, 1, &spec, 0, &ref); st != 0 {
 			return fmt.Errorf("mygo: cannot install hot key handler (%d)", st)
 		}
+		rel := eventTypeSpec{Class: kEventClassKeyboard, Kind: kEventHotKeyReleased}
+		if st := installEventHandler(getApplicationEventTarget(), hotKeyReleasedHandler, 1, &rel, 0, &ref); st != 0 {
+			return fmt.Errorf("mygo: cannot install hot key release handler (%d)", st)
+		}
 		b.hkInstalled = true
 	}
 	var ref uintptr
@@ -100,8 +124,66 @@ func (b *Backend) RegisterHotkey(hid int, acc string) error {
 }
 
 func (b *Backend) UnregisterHotkey(hid int) {
+	b.stopRepeat(hid)
+	delete(b.hotkeyRepeat, hid)
 	if ref, ok := b.hotkeys[hid]; ok {
 		unregisterEventHotKey(ref)
 		delete(b.hotkeys, hid)
+	}
+}
+
+// RegisterRepeatHotkey registers the shortcut, and has it fire again every
+// repeat interval until the key is released.
+func (b *Backend) RegisterRepeatHotkey(hid int, acc string) error {
+	if err := b.RegisterHotkey(hid, acc); err != nil {
+		return err
+	}
+	if b.hotkeyRepeat == nil {
+		b.hotkeyRepeat = map[int]bool{}
+	}
+	b.hotkeyRepeat[hid] = true
+	return nil
+}
+
+// startRepeat begins the repeats of a shortcut the user is holding down; the
+// shortcuts that fire once do nothing here.
+func (b *Backend) startRepeat(hid int) {
+	if !b.hotkeyRepeat[hid] {
+		return
+	}
+	if b.hotkeyStops == nil {
+		b.hotkeyStops = map[int]chan struct{}{}
+	}
+	if _, ok := b.hotkeyStops[hid]; ok {
+		return
+	}
+	stop := make(chan struct{})
+	b.hotkeyStops[hid] = stop
+	go func() {
+		t := time.NewTicker(hotkeyRepeatInterval)
+		defer t.Stop()
+		for i := 1; ; i++ {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+				if i > hotkeyRepeatMax {
+					b.post(func() { b.stopRepeat(hid) })
+					return
+				}
+				b.post(func() { b.h.HotkeyPressed(hid) })
+			}
+		}
+	}()
+}
+
+// stopRepeat ends the repeats of a shortcut, as letting go of it does.
+func (b *Backend) stopRepeat(hid int) {
+	if b.hotkeyStops == nil {
+		return
+	}
+	if stop, ok := b.hotkeyStops[hid]; ok {
+		close(stop)
+		delete(b.hotkeyStops, hid)
 	}
 }

@@ -34,6 +34,10 @@ type Backend struct {
 	trays       map[id]*tray
 	hotkeys     map[int]uintptr
 	hkInstalled bool
+	// hotkeyRepeat marks the shortcuts that fire while held, and
+	// hotkeyStops closes to end one. Main thread only.
+	hotkeyRepeat map[int]bool
+	hotkeyStops  map[int]chan struct{}
 
 	notifyDelegate id
 	// notifyAnswered records that the user has answered whether the app

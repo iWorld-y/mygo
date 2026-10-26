@@ -444,6 +444,11 @@ func (b *Backend) RegisterHotkey(id int, acc string) error {
 	return nil
 }
 
+// RegisterRepeatHotkey registers the shortcut. Windows reports no key release: the shortcut fires once per press.
+func (b *Backend) RegisterRepeatHotkey(id int, acc string) error {
+	return b.RegisterHotkey(id, acc)
+}
+
 func (b *Backend) UnregisterHotkey(id int) { procUnregisterHotKey.Call(b.appHwnd, uintptr(id)) }
 
 // traysAppearance tells the icons whose taskbar turned dark or light. A

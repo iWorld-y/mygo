@@ -547,6 +547,18 @@ var GlobalShortcut = &GlobalShortcutModule{}
 // while the desktop binds it, and a second Register of the same
 // accelerator fails.
 func (g *GlobalShortcutModule) Register(acc string, fn func()) error {
+	return g.register(acc, fn, false)
+}
+
+// RegisterRepeat is Register for a shortcut that repeats while it is held
+// down: fn runs on the main thread when the key goes down, then again every
+// few hundredths of a second until it is released. Platforms that report no
+// key release (Linux and Windows) run it once, as Register does.
+func (g *GlobalShortcutModule) RegisterRepeat(acc string, fn func()) error {
+	return g.register(acc, fn, true)
+}
+
+func (g *GlobalShortcutModule) register(acc string, fn func(), repeat bool) error {
 	needsApp("GlobalShortcut.Register")
 	a, err := accelerator.Parse(acc, runtime.GOOS)
 	if err != nil {
@@ -565,7 +577,11 @@ func (g *GlobalShortcutModule) Register(acc string, fn func()) error {
 	id := g.next
 	g.byKey[key] = id
 	g.mu.Unlock()
-	if err := onMainValue(func() error { return backend().RegisterHotkey(id, acc) }); err != nil {
+	register := func() error { return backend().RegisterHotkey(id, acc) }
+	if repeat {
+		register = func() error { return backend().RegisterRepeatHotkey(id, acc) }
+	}
+	if err := onMainValue(register); err != nil {
 		g.mu.Lock()
 		if g.byKey[key] == id {
 			delete(g.byKey, key)

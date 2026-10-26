@@ -139,6 +139,11 @@ func (b *Backend) RegisterHotkey(id int, acc string) error {
 	return nil
 }
 
+// RegisterRepeatHotkey registers the shortcut. Linux reports no key release: the shortcut fires once per press.
+func (b *Backend) RegisterRepeatHotkey(id int, acc string) error {
+	return b.RegisterHotkey(id, acc)
+}
+
 func (b *Backend) UnregisterHotkey(id int) {
 	if g, ok := b.grabs[id]; ok {
 		delete(b.grabs, id)
