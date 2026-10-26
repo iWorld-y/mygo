@@ -679,6 +679,12 @@ type WindowHandler interface {
 	// PermissionRequested asks whether the page at origin may use kinds:
 	// "camera", "microphone", "geolocation" or "notifications".
 	PermissionRequested(kinds []string, origin string) bool
+	// AuthenticationRequested asks for the credentials an HTTP
+	// authentication challenge needs, such as the password of a site
+	// behind Basic authentication. Returning false leaves the challenge to
+	// the backend, which shows the sign-in dialog it shows in its own
+	// browser.
+	AuthenticationRequested(ch AuthChallenge) (Credential, bool)
 
 	// SurfaceEvent delivers input on the window's Surface, and changes of
 	// it. For FileDragOver and FileDrop it reports whether the content
@@ -686,6 +692,24 @@ type WindowHandler interface {
 	// the key itself, which the system then leaves alone (Windows opens no
 	// menu for Alt and the key); it returns false for other events.
 	SurfaceEvent(ev SurfaceEvent) bool
+}
+
+// AuthChallenge is an HTTP authentication challenge of a page: the sign-in
+// a site behind Basic or Digest authentication asks for.
+type AuthChallenge struct {
+	// Scheme is the method of the challenge, as the backend names it such
+	// as "HTTPBasic", or "Basic" where it reports the bare name.
+	Scheme string
+	// Realm is the space to sign in to, named by the server.
+	Realm string
+	// Host is the host the challenge comes from.
+	Host string
+}
+
+// Credential answers an AuthChallenge.
+type Credential struct {
+	Username string
+	Password string
 }
 
 // Navigation describes a pending navigation.

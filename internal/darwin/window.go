@@ -1868,6 +1868,34 @@ func registerWindowClasses() {
 				}
 			}),
 
+			// WKNavigationDelegate: HTTP authentication, the password
+			// prompt of a site behind Basic or Digest authentication.
+			method("webView:didReceiveAuthenticationChallenge:completionHandler:", func(self id, _ objc.SEL, web, challenge id, handler uintptr) {
+				const (
+					useCredential   = 0 // NSURLSessionAuthChallengeUseCredential
+					defaultHandling = 1 // NSURLSessionAuthChallengePerformDefaultHandling
+				)
+				space := send(challenge, "protectionSpace")
+				scheme := strings.TrimPrefix(goString(send(space, "authenticationMethod")), "NSURLAuthenticationMethod")
+				if scheme == "HTTPBasic" || scheme == "HTTPDigest" {
+					if w := b().windowFor(self); w != nil {
+						cred, ok := w.h.AuthenticationRequested(platform.AuthChallenge{
+							Scheme: scheme,
+							Realm:  goString(send(space, "realm")),
+							Host:   goString(send(space, "host")),
+						})
+						if ok {
+							// A credential of the session: the app keeps
+							// the password, the web view only uses it.
+							c := send(class("NSURLCredential"), "credentialWithUser:password:persistence:",
+								uintptr(nsString(cred.Username)), uintptr(nsString(cred.Password)), 1)
+							callBlock(handler, useCredential, uintptr(c))
+							return
+						}
+					}
+				}
+				callBlock(handler, defaultHandling, 0)
+			}),
 			// WKNavigationDelegate
 			method("webView:decidePolicyForNavigationAction:decisionHandler:", func(self id, _ objc.SEL, web, action id, handler uintptr) {
 				// A link with the download attribute (macOS 11.3).

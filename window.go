@@ -317,6 +317,7 @@ type Window struct {
 	mu                sync.Mutex
 	openHandler       func(WindowOpenRequest) *WindowOptions
 	permissionHandler func(PermissionRequest) bool
+	authHandler       func(AuthenticationRequest) *Credential
 	pageCtx           context.Context
 	pageCancel        context.CancelFunc
 	// channels are those of the current page, by the page's id for them.
