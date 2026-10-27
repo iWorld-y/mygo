@@ -113,6 +113,11 @@ type Backend interface {
 
 	NewTray(h TrayHandler) (Tray, error)
 	RegisterHotkey(id int, accelerator string) error
+	// RegisterRepeatHotkey registers a shortcut that also fires while it is
+	// held down, every repeat interval, until the key is released.
+	// Platforms that report no key release fire it once per press, as
+	// RegisterHotkey does.
+	RegisterRepeatHotkey(id int, accelerator string) error
 	UnregisterHotkey(id int)
 
 	NotificationsSupported() bool
@@ -679,6 +684,17 @@ type WindowHandler interface {
 	// PermissionRequested asks whether the page at origin may use kinds:
 	// "camera", "microphone", "geolocation" or "notifications".
 	PermissionRequested(kinds []string, origin string) bool
+	// AuthenticationRequested asks for the credentials an HTTP
+	// authentication challenge needs, such as the password of a site
+	// behind Basic authentication. Returning false leaves the challenge to
+	// the backend, which shows the sign-in dialog it shows in its own
+	// browser.
+	AuthenticationRequested(ch AuthChallenge) (Credential, bool)
+	// HasAuthenticationHandler reports whether the app answers challenges
+	// at all. Without one, the backend leaves them to the system; an app
+	// that answers and then declines has the challenge canceled instead,
+	// so the web view does not retry a credential it already rejected.
+	HasAuthenticationHandler() bool
 
 	// SurfaceEvent delivers input on the window's Surface, and changes of
 	// it. For FileDragOver and FileDrop it reports whether the content
@@ -686,6 +702,24 @@ type WindowHandler interface {
 	// the key itself, which the system then leaves alone (Windows opens no
 	// menu for Alt and the key); it returns false for other events.
 	SurfaceEvent(ev SurfaceEvent) bool
+}
+
+// AuthChallenge is an HTTP authentication challenge of a page: the sign-in
+// a site behind Basic or Digest authentication asks for.
+type AuthChallenge struct {
+	// Scheme is the method of the challenge, as the backend names it such
+	// as "HTTPBasic", or "Basic" where it reports the bare name.
+	Scheme string
+	// Realm is the space to sign in to, named by the server.
+	Realm string
+	// Host is the host the challenge comes from.
+	Host string
+}
+
+// Credential answers an AuthChallenge.
+type Credential struct {
+	Username string
+	Password string
 }
 
 // Navigation describes a pending navigation.

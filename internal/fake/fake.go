@@ -392,6 +392,11 @@ func (b *Backend) RegisterHotkey(id int, acc string) error {
 	return nil
 }
 
+// RegisterRepeatHotkey registers the shortcut. The fake backend fires the shortcut once per press.
+func (b *Backend) RegisterRepeatHotkey(id int, acc string) error {
+	return b.RegisterHotkey(id, acc)
+}
+
 func (b *Backend) UnregisterHotkey(id int) {
 	b.mu.Lock()
 	delete(b.hotkeys, id)
